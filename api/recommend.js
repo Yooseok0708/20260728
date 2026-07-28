@@ -1,7 +1,5 @@
 const https = require('https');
 
-const API_KEY = process.env.OPENAI_API_KEY || '';
-
 function send(res, statusCode, body) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -39,14 +37,14 @@ function buildPrompt(sign, birthday) {
   ].join('\n');
 }
 
-function openaiRequest(requestBody) {
+function openaiRequest(apiKey, requestBody) {
   return new Promise((resolve, reject) => {
     const req = https.request(
       'https://api.openai.com/v1/responses',
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(requestBody),
         },
@@ -79,7 +77,6 @@ function extractOutputText(data) {
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, {});
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
-  if (!API_KEY) return send(res, 500, { error: 'OPENAI_API_KEY가 설정되어 있지 않습니다.' });
 
   let body = '';
   for await (const chunk of req) body += chunk;
@@ -91,7 +88,9 @@ module.exports = async (req, res) => {
     return send(res, 400, { error: '잘못된 JSON 요청입니다.' });
   }
 
+  const apiKey = String(payload.apiKey || process.env.OPENAI_API_KEY || '').trim();
   const sign = normalizeSign(payload.sign);
+  if (!apiKey) return send(res, 400, { error: 'OpenAI API key가 필요합니다.' });
   if (!payload.birthday || !sign) return send(res, 400, { error: '생년월일과 별자리가 필요합니다.' });
 
   const requestBody = JSON.stringify({
@@ -118,7 +117,7 @@ module.exports = async (req, res) => {
     },
   });
 
-  const response = await openaiRequest(requestBody);
+  const response = await openaiRequest(apiKey, requestBody);
   if (!response.ok) return send(res, 502, { error: `OpenAI API 오류(${response.status}).` });
 
   let data;
