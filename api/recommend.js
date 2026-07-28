@@ -88,7 +88,7 @@ module.exports = async (req, res) => {
     return send(res, 400, { error: '잘못된 JSON 요청입니다.' });
   }
 
-  const apiKey = String(payload.apiKey || process.env.OPENAI_API_KEY || '').trim();
+  const apiKey = String(payload.apiKey || '').trim();
   const sign = normalizeSign(payload.sign);
   if (!apiKey) return send(res, 400, { error: 'OpenAI API key가 필요합니다.' });
   if (!payload.birthday || !sign) return send(res, 400, { error: '생년월일과 별자리가 필요합니다.' });
