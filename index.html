@@ -119,8 +119,6 @@
     const mainCountEl = document.getElementById('mainCount');
     const bonusCountEl = document.getElementById('bonusCount');
     const aiStateEl = document.getElementById('aiState');
-    const apiBase = location.origin === 'null' ? 'http://localhost:3000' : location.origin;
-
     const signs = [
       { name: '염소자리', start: '12-22', end: '01-19', element: '땅', trait: '꾸준함', vibe: '안정' },
       { name: '물병자리', start: '01-20', end: '02-18', element: '공기', trait: '독창성', vibe: '변주' },
@@ -174,7 +172,7 @@
     }
 
     async function requestRecommendation(birthday, sign) {
-      const response = await fetch(`${apiBase}/api/recommend`, {
+      const response = await fetch('/api/recommend', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ birthday, sign }),
