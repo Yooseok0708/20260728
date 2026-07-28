@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>별자리 로또 추첨기</title>
+  <style>
+    :root{
+      --primary:#ff385c;
+      --primary-hover:#e00b41;
+      --canvas:#ffffff;
+      --surface:#f7f7f7;
+      --hairline:#dddddd;
+      --text:#222222;
+      --muted:#6a6a6a;
+      --shadow:rgba(0,0,0,0.02) 0 0 0 1px,rgba(0,0,0,0.04) 0 2px 6px 0,rgba(0,0,0,0.1) 0 4px 8px 0;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(255,56,92,.08), transparent 28%),
+        radial-gradient(circle at top right, rgba(255,56,92,.06), transparent 24%),
+        var(--canvas);
+      color:var(--text);
+    }
+    .wrap{width:min(1200px,calc(100% - 32px));margin:0 auto;padding:24px 0 48px}
+    header{
+      display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;
+      border-bottom:1px solid var(--hairline);padding-bottom:18px;margin-bottom:28px;
+    }
+    .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--primary)}
+    h1{margin:8px 0 0;font-size:clamp(28px,4vw,48px);line-height:1.08;letter-spacing:-.03em}
+    .lead{margin:12px 0 0;color:var(--muted);font-size:16px;line-height:1.6;max-width:64ch}
+    .badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--hairline);border-radius:9999px;padding:8px 14px;font-size:12px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.92)}
+    .grid{display:grid;grid-template-columns:minmax(320px,380px) 1fr;gap:20px}
+    .card,.summary,.astro,.explain{background:var(--canvas);border:1px solid var(--hairline);border-radius:20px;box-shadow:var(--shadow)}
+    .card{padding:20px}
+    .panel-title{margin:0 0 6px;font-size:18px}
+    .panel-copy{margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.55}
+    .field{display:grid;gap:8px;margin-bottom:14px}
+    label{font-size:13px;font-weight:700}
+    input{height:56px;border-radius:12px;border:1px solid var(--hairline);padding:0 14px;font-size:16px;font-family:inherit;background:#fff;color:var(--text)}
+    input:focus{outline:none;border-color:var(--text);box-shadow:0 0 0 1px var(--text) inset}
+    .hint{font-size:12px;color:var(--muted)}
+    .actions{display:flex;gap:12px;margin-top:6px;flex-wrap:wrap}
+    button{height:48px;border:none;border-radius:12px;padding:0 18px;font-size:15px;font-weight:700;cursor:pointer}
+    .primary{background:var(--primary);color:#fff}
+    .primary:hover{background:var(--primary-hover)}
+    .secondary{background:#fff;color:var(--text);border:1px solid var(--text)}
+    .secondary:hover{background:var(--surface)}
+    .status,.err{min-height:1.5em;line-height:1.5;font-size:14px;margin-top:10px}
+    .status{color:var(--muted)}
+    .err{color:#b32505}
+    .result{display:grid;gap:18px;align-content:start}
+    .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;align-items:stretch}
+    .summary{padding:22px;min-height:180px;display:grid;align-content:space-between;background:linear-gradient(135deg,#111,#2b2b2b);color:#fff}
+    .summary small{color:rgba(255,255,255,.75);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+    .summary h2{margin:8px 0 0;font-size:28px;line-height:1.1}
+    .summary p{margin:10px 0 0;color:rgba(255,255,255,.8);line-height:1.55;font-size:14px}
+    .astro{padding:20px;display:grid;gap:12px;align-content:start;background:var(--surface)}
+    .astro-row{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+    .astro-row span:last-child{font-weight:700}
+    .numbers{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px}
+    .ball{aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-size:clamp(1rem,1.8vw,1.4rem);font-weight:900;color:#111827;background:radial-gradient(circle at 30% 30%, #fff6c7 0 18%, #ffd84d 40%, #ffb000 100%);box-shadow:var(--shadow)}
+    .ball.bonus{background:radial-gradient(circle at 30% 30%, #ffd7df 0 18%, #ff8ea4 40%, #ff385c 100%);color:#fff}
+    .explain{padding:20px}
+    .explain h3{margin:0 0 12px;font-size:18px}
+    .chat{display:grid;gap:12px}
+    .message{max-width:86%;padding:14px 16px;border-radius:18px;line-height:1.65;white-space:pre-wrap}
+    .user{background:#111827;color:#fff;justify-self:end}
+    .assistant{background:var(--surface);border:1px solid var(--hairline);justify-self:start}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{border:1px solid var(--hairline);background:#fff;border-radius:9999px;padding:7px 11px;font-size:12px;color:var(--muted)}
+    .pulse{animation:pulse 1.5s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+    @media (max-width: 960px){.grid,.hero{grid-template-columns:1fr}.numbers{grid-template-columns:repeat(4,minmax(0,1fr))}.message{max-width:100%}}
+    @media (max-width: 560px){.wrap{width:min(100% - 24px,100%)}h1{font-size:28px}.numbers{grid-template-columns:repeat(3,minmax(0,1fr))}.card,.summary,.astro,.explain{border-radius:18px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Zodiac Lotto Maker</div>
+        <h1>생년월일로 별자리 기반 로또 번호를 뽑아보세요</h1>
+        <p class="lead">생년월일을 입력하면 별자리를 판별하고, OpenAI API로 그 이유를 설명하는 로또 번호 조합을 만들어줍니다. 결과는 6개 메인 번호와 1개 보너스로 보여줍니다.</p>
+      </div>
+      <div class="badge">OpenAI API · gpt-5.4-mini</div>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <h2 class="panel-title">입력</h2>
+        <p class="panel-copy">API 키는 저장하지 않고 요청할 때만 사용합니다. 서버가 있으면 서버로 보내고, 없으면 브라우저에서 직접 OpenAI를 호출합니다.</p>
+
+        <div class="field">
+          <label for="apiKey">OpenAI API Key</label>
+          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+          <div class="hint">배포 시에는 서버 환경변수로 옮기는 것을 권장합니다.</div>
+        </div>
+
+        <div class="field">
+          <label for="birthdate">생년월일</label>
+          <input id="birthdate" type="date" />
+          <div class="hint">예: 1995-07-28</div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="drawBtn">번호 뽑기</button>
+          <button class="secondary" id="resetBtn">초기화</button>
+        </div>
+
+        <div class="status" id="status">생년월일을 입력하면 별자리를 계산합니다.</div>
+        <div class="err" id="error"></div>
+      </div>
+
+      <div class="result">
+        <div class="hero">
+          <div class="summary">
+            <div>
+              <small id="signLabel">별자리</small>
+              <h2 id="summaryTitle">아직 추첨 전입니다</h2>
+              <p id="summaryText">입력을 마치고 번호 뽑기를 누르면, 추천 번호와 이유가 이곳에 표시됩니다.</p>
+            </div>
+            <div class="chips" id="chips"></div>
+          </div>
+          <div class="astro">
+            <div class="astro-row"><span>메인 번호</span><span id="mainCount">-</span></div>
+            <div class="astro-row"><span>보너스</span><span id="bonusCount">-</span></div>
+            <div class="astro-row"><span>상태</span><span id="aiState">대기 중</span></div>
+          </div>
+        </div>
+        <div class="numbers" id="numbers" aria-live="polite"></div>
+        <div class="explain">
+          <h3>왜 이 번호인가요?</h3>
+          <div class="chat" id="chat"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const apiKeyEl = document.getElementById('apiKey');
+    const birthdateEl = document.getElementById('birthdate');
+    const drawBtn = document.getElementById('drawBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    const numbersEl = document.getElementById('numbers');
+    const chatEl = document.getElementById('chat');
+    const signLabelEl = document.getElementById('signLabel');
+    const summaryTitleEl = document.getElementById('summaryTitle');
+    const summaryTextEl = document.getElementById('summaryText');
+    const chipsEl = document.getElementById('chips');
+    const mainCountEl = document.getElementById('mainCount');
+    const bonusCountEl = document.getElementById('bonusCount');
+    const aiStateEl = document.getElementById('aiState');
+
+    const signs = [
+      { name: '염소자리', start: '12-22', end: '01-19', element: '땅', trait: '꾸준함', vibe: '안정' },
+      { name: '물병자리', start: '01-20', end: '02-18', element: '공기', trait: '독창성', vibe: '변주' },
+      { name: '물고기자리', start: '02-19', end: '03-20', element: '물', trait: '직관', vibe: '감성' },
+      { name: '양자리', start: '03-21', end: '04-19', element: '불', trait: '시작', vibe: '추진' },
+      { name: '황소자리', start: '04-20', end: '05-20', element: '땅', trait: '집중', vibe: '균형' },
+      { name: '쌍둥이자리', start: '05-21', end: '06-21', element: '공기', trait: '호기심', vibe: '변화' },
+      { name: '게자리', start: '06-22', end: '07-22', element: '물', trait: '보호', vibe: '정서' },
+      { name: '사자자리', start: '07-23', end: '08-22', element: '불', trait: '존재감', vibe: '자신감' },
+      { name: '처녀자리', start: '08-23', end: '09-22', element: '땅', trait: '정교함', vibe: '정리' },
+      { name: '천칭자리', start: '09-23', end: '10-22', element: '공기', trait: '조화', vibe: '선택' },
+      { name: '전갈자리', start: '10-23', end: '11-22', element: '물', trait: '집중력', vibe: '강도' },
+      { name: '사수자리', start: '11-23', end: '12-21', element: '불', trait: '확장', vibe: '도전' },
+    ];
+
+    function getZodiac(dateStr) {
+      const [, mm, dd] = dateStr.split('-');
+      const key = `${mm}-${dd}`;
+      return signs.find(sign => sign.start <= sign.end
+        ? key >= sign.start && key <= sign.end
+        : key >= sign.start || key <= sign.end) || null;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function renderNumbers(nums) {
+      numbersEl.innerHTML = '';
+      nums.main.forEach(n => numbersEl.appendChild(makeBall(n)));
+      numbersEl.appendChild(makeBall(nums.bonus, true));
+    }
+
+    function makeBall(num, bonus = false) {
+      const el = document.createElement('div');
+      el.className = 'ball' + (bonus ? ' bonus' : '');
+      el.textContent = String(num).padStart(2, '0');
+      return el;
+    }
+
+    function renderExplanation(userText, assistantText) {
+      chatEl.innerHTML = `
+        <div class="message user">${escapeHtml(userText)}</div>
+        <div class="message assistant">${escapeHtml(assistantText)}</div>
+      `;
+    }
+
+    function renderSummary(sign) {
+      signLabelEl.textContent = sign ? sign.name : '별자리';
+      summaryTitleEl.textContent = sign ? `${sign.name} 조합 준비 완료` : '아직 추첨 전입니다';
+      summaryTextEl.textContent = sign
+        ? `${sign.element}의 기운과 ${sign.trait} 키워드를 바탕으로 번호를 추천합니다.`
+        : '입력을 마치고 번호 뽑기를 누르면, 추천 번호와 이유가 이곳에 표시됩니다.';
+      chipsEl.innerHTML = sign ? `
+        <span class="chip">${sign.element}</span>
+        <span class="chip">${sign.trait}</span>
+        <span class="chip">${sign.vibe}</span>
+      ` : '';
+    }
+
+    async function callLocalServer(apiKey, birthday, sign) {
+      const response = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, birthday, sign }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || '서버 요청에 실패했습니다.');
+      return data;
+    }
+
+    async function callOpenAIFromBrowser(apiKey, birthday, sign) {
+      const payload = {
+        model: 'gpt-5.4-mini',
+        input: [
+          {
+            role: 'system',
+            content: '당신은 로또 번호 추천을 돕는 친절한 한국어 어시스턴트입니다. 결과는 정확한 JSON으로만 반환합니다.',
+          },
+          {
+            role: 'user',
+            content: [
+              `생년월일: ${birthday}`,
+              `별자리: ${sign.name}`,
+              `별자리 요소: ${sign.element}`,
+              `별자리 특징: ${sign.trait}`,
+              `별자리 분위기: ${sign.vibe}`,
+              '',
+              '아래 규칙을 지켜 로또 추천 결과를 만들어 주세요.',
+              '- 한국 로또 기준으로 메인 번호 6개와 보너스 번호 1개를 추천하세요.',
+              '- 모든 숫자는 1부터 45 사이 정수여야 합니다.',
+              '- 메인 번호 6개는 중복 없이 오름차순으로 정렬하세요.',
+              '- 보너스 번호는 메인 번호와 달라야 합니다.',
+              '- 번호 선택의 이유를 3~5문장 한국어로 설명하세요.',
+              '- 반드시 JSON만 출력하세요.',
+            ].join('\n'),
+          },
+        ],
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'lottery_recommendation',
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                main: {
+                  type: 'array',
+                  minItems: 6,
+                  maxItems: 6,
+                  items: { type: 'integer', minimum: 1, maximum: 45 },
+                },
+                bonus: { type: 'integer', minimum: 1, maximum: 45 },
+                explanation: { type: 'string' },
+              },
+              required: ['main', 'bonus', 'explanation'],
+            },
+          },
+        },
+      };
+
+      const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error?.message || 'OpenAI 요청에 실패했습니다.');
+
+      const text = data.output_text || '';
+      const parsed = JSON.parse(text);
+      return parsed;
+    }
+
+    async function requestRecommendation(apiKey, birthday, sign) {
+      try {
+        return await callLocalServer(apiKey, birthday, sign);
+      } catch (localError) {
+        try {
+          return await callOpenAIFromBrowser(apiKey, birthday, sign);
+        } catch (browserError) {
+          throw new Error(
+            `요청 실패: 서버(${localError.message}) / 직접 호출(${browserError.message})`
+          );
+        }
+      }
+    }
+
+    drawBtn.addEventListener('click', async () => {
+      errorEl.textContent = '';
+      const apiKey = apiKeyEl.value.trim();
+      const birthday = birthdateEl.value;
+
+      if (!apiKey) {
+        errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
+        return;
+      }
+      if (!birthday) {
+        errorEl.textContent = '생년월일을 입력해 주세요.';
+        return;
+      }
+
+      const sign = getZodiac(birthday);
+      if (!sign) {
+        errorEl.textContent = '별자리를 계산할 수 없습니다.';
+        return;
+      }
+
+      renderSummary(sign);
+      statusEl.textContent = `${sign.name} 기준으로 번호를 계산하는 중입니다.`;
+      aiStateEl.textContent = '생성 중';
+      drawBtn.disabled = true;
+      drawBtn.classList.add('pulse');
+
+      try {
+        const data = await requestRecommendation(apiKey, birthday, sign);
+        if (!data?.main?.length || typeof data.explanation !== 'string') {
+          throw new Error('응답 형식이 올바르지 않습니다.');
+        }
+        renderNumbers(data);
+        renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, data.explanation);
+        mainCountEl.textContent = `${data.main.length}개`;
+        bonusCountEl.textContent = `${String(data.bonus).padStart(2, '0')}`;
+        aiStateEl.textContent = '완료';
+        statusEl.textContent = `${sign.name} 기반 추첨이 완료되었습니다.`;
+        summaryTitleEl.textContent = `${sign.name} 추천 번호`;
+      } catch (err) {
+        errorEl.textContent = err.message || '서버 상태를 확인해 주세요.';
+        aiStateEl.textContent = '실패';
+      } finally {
+        drawBtn.disabled = false;
+        drawBtn.classList.remove('pulse');
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      apiKeyEl.value = '';
+      birthdateEl.value = '';
+      numbersEl.innerHTML = '';
+      chatEl.innerHTML = '';
+      chipsEl.innerHTML = '';
+      signLabelEl.textContent = '별자리';
+      summaryTitleEl.textContent = '아직 추첨 전입니다';
+      summaryTextEl.textContent = '입력을 마치고 번호 뽑기를 누르면, 추천 번호와 이유가 이곳에 표시됩니다.';
+      mainCountEl.textContent = '-';
+      bonusCountEl.textContent = '-';
+      aiStateEl.textContent = '대기 중';
+      statusEl.textContent = '생년월일을 입력하면 별자리를 계산합니다.';
+      errorEl.textContent = '';
+    });
+
+    renderSummary(null);
+  </script>
+</body>
+</html>
