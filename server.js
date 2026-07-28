@@ -117,12 +117,8 @@ async function recommend(body) {
   const apiKey = getApiKey(body);
   const sign = normalizeSign(body.sign);
 
-  if (!apiKey) {
-    return { error: 'OpenAI API key가 없습니다.' };
-  }
-  if (!body.birthday || !sign) {
-    return { error: '생년월일과 별자리가 필요합니다.' };
-  }
+  if (!apiKey) return { error: 'OpenAI API key가 없습니다.' };
+  if (!body.birthday || !sign) return { error: '생년월일과 별자리가 필요합니다.' };
 
   const requestBody = JSON.stringify({
     model: 'gpt-5.4-mini',
@@ -160,39 +156,31 @@ async function recommend(body) {
   });
 
   const response = await openaiRequest(apiKey, requestBody);
-  if (!response.ok) {
-    return { error: `OpenAI API 오류(${response.status}): ${response.raw}` };
-  }
+  if (!response.ok) return { error: `OpenAI API 오류(${response.status}).` };
 
   let data;
   try {
     data = JSON.parse(response.raw);
   } catch (error) {
-    return { error: `OpenAI 응답 JSON 파싱 실패: ${response.raw}` };
+    return { error: 'OpenAI 응답 JSON 파싱 실패' };
   }
 
   const text = extractOutputText(data);
-  if (!text) {
-    return { error: 'OpenAI 응답에서 텍스트를 찾지 못했습니다.' };
-  }
+  if (!text) return { error: 'OpenAI 응답에서 텍스트를 찾지 못했습니다.' };
 
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    return { error: `결과 JSON 파싱 실패: ${text}` };
+    return { error: '결과 JSON 파싱 실패' };
   }
 
   const main = [...new Set((parsed.main || []).filter(Number.isInteger))].filter(n => n >= 1 && n <= 45).sort((a, b) => a - b);
   const bonus = Number.isInteger(parsed.bonus) && parsed.bonus >= 1 && parsed.bonus <= 45 ? parsed.bonus : null;
   const explanation = typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '';
 
-  if (main.length !== 6 || bonus === null || !explanation) {
-    return { error: '응답 내용이 요구 형식과 맞지 않습니다.' };
-  }
-  if (main.includes(bonus)) {
-    return { error: '보너스 번호가 메인 번호와 중복되었습니다.' };
-  }
+  if (main.length !== 6 || bonus === null || !explanation) return { error: '응답 내용이 요구 형식과 맞지 않습니다.' };
+  if (main.includes(bonus)) return { error: '보너스 번호가 메인 번호와 중복되었습니다.' };
 
   return { main, bonus, explanation };
 }
