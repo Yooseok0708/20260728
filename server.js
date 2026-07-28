@@ -4,16 +4,14 @@ const path = require('path');
 const https = require('https');
 
 const PORT = process.env.PORT || 3000;
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+const API_KEY = process.env.OPENAI_API_KEY || '';
 
 function send(res, statusCode, body, headers = {}) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    ...corsHeaders,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
     ...headers,
   });
   res.end(JSON.stringify(body));
@@ -55,24 +53,18 @@ function buildPrompt(sign, birthday) {
     '- 메인 번호 6개는 중복 없이 오름차순으로 정렬하세요.',
     '- 보너스 번호는 메인 번호와 달라야 합니다.',
     '- 번호 선택의 이유를 3~5문장 한국어로 설명하세요.',
-    '- 설명은 생년월일과 별자리의 성향을 어떻게 반영했는지 자연스럽게 풀어주세요.',
-    '- 과도한 미신 표현은 피하고, 재미있는 연출은 허용합니다.',
     '- 반드시 JSON만 출력하세요.',
   ].join('\n');
 }
 
-function getApiKey(body) {
-  return body.apiKey || process.env.OPENAI_API_KEY || '';
-}
-
-function openaiRequest(apiKey, requestBody) {
+function openaiRequest(requestBody) {
   return new Promise((resolve, reject) => {
     const req = https.request(
       'https://api.openai.com/v1/responses',
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${API_KEY}`,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(requestBody),
         },
@@ -80,19 +72,10 @@ function openaiRequest(apiKey, requestBody) {
       res => {
         let raw = '';
         res.setEncoding('utf8');
-        res.on('data', chunk => {
-          raw += chunk;
-        });
-        res.on('end', () => {
-          resolve({
-            ok: res.statusCode >= 200 && res.statusCode < 300,
-            status: res.statusCode,
-            raw,
-          });
-        });
+        res.on('data', chunk => (raw += chunk));
+        res.on('end', () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, raw }));
       }
     );
-
     req.on('error', reject);
     req.write(requestBody);
     req.end();
@@ -105,32 +88,22 @@ function extractOutputText(data) {
   for (const item of output) {
     const content = Array.isArray(item?.content) ? item.content : [];
     for (const part of content) {
-      if (part?.type === 'output_text' && typeof part.text === 'string') {
-        return part.text;
-      }
+      if (part?.type === 'output_text' && typeof part.text === 'string') return part.text;
     }
   }
   return '';
 }
 
 async function recommend(body) {
-  const apiKey = getApiKey(body);
   const sign = normalizeSign(body.sign);
-
-  if (!apiKey) return { error: 'OpenAI API key가 없습니다.' };
+  if (!API_KEY) return { error: 'OPENAI_API_KEY가 서버에 설정되어 있지 않습니다.' };
   if (!body.birthday || !sign) return { error: '생년월일과 별자리가 필요합니다.' };
 
   const requestBody = JSON.stringify({
     model: 'gpt-5.4-mini',
     input: [
-      {
-        role: 'system',
-        content: '당신은 로또 번호 추천을 돕는 친절한 한국어 어시스턴트입니다. 결과는 정확한 JSON으로만 반환합니다.',
-      },
-      {
-        role: 'user',
-        content: buildPrompt(sign, body.birthday),
-      },
+      { role: 'system', content: '당신은 로또 번호 추천을 돕는 친절한 한국어 어시스턴트입니다. 결과는 정확한 JSON으로만 반환합니다.' },
+      { role: 'user', content: buildPrompt(sign, body.birthday) },
     ],
     text: {
       format: {
@@ -140,12 +113,7 @@ async function recommend(body) {
           type: 'object',
           additionalProperties: false,
           properties: {
-            main: {
-              type: 'array',
-              minItems: 6,
-              maxItems: 6,
-              items: { type: 'integer', minimum: 1, maximum: 45 },
-            },
+            main: { type: 'array', minItems: 6, maxItems: 6, items: { type: 'integer', minimum: 1, maximum: 45 } },
             bonus: { type: 'integer', minimum: 1, maximum: 45 },
             explanation: { type: 'string' },
           },
@@ -155,13 +123,13 @@ async function recommend(body) {
     },
   });
 
-  const response = await openaiRequest(apiKey, requestBody);
+  const response = await openaiRequest(requestBody);
   if (!response.ok) return { error: `OpenAI API 오류(${response.status}).` };
 
   let data;
   try {
     data = JSON.parse(response.raw);
-  } catch (error) {
+  } catch {
     return { error: 'OpenAI 응답 JSON 파싱 실패' };
   }
 
@@ -171,7 +139,7 @@ async function recommend(body) {
   let parsed;
   try {
     parsed = JSON.parse(text);
-  } catch (error) {
+  } catch {
     return { error: '결과 JSON 파싱 실패' };
   }
 
@@ -187,7 +155,11 @@ async function recommend(body) {
 
 http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, corsHeaders);
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
     res.end();
     return;
   }
@@ -198,9 +170,7 @@ http.createServer((req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/recommend') {
     let raw = '';
-    req.on('data', chunk => {
-      raw += chunk;
-    });
+    req.on('data', chunk => (raw += chunk));
     req.on('end', async () => {
       try {
         const body = JSON.parse(raw || '{}');

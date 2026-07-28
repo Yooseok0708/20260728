@@ -5,31 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>별자리 로또 추첨기</title>
   <style>
-    :root{
-      --primary:#ff385c;
-      --primary-hover:#e00b41;
-      --canvas:#ffffff;
-      --surface:#f7f7f7;
-      --hairline:#dddddd;
-      --text:#222222;
-      --muted:#6a6a6a;
-      --shadow:rgba(0,0,0,0.02) 0 0 0 1px,rgba(0,0,0,0.04) 0 2px 6px 0,rgba(0,0,0,0.1) 0 4px 8px 0;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0}
-    body{
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(255,56,92,.08), transparent 28%),
-        radial-gradient(circle at top right, rgba(255,56,92,.06), transparent 24%),
-        var(--canvas);
-      color:var(--text);
-    }
+    :root{--primary:#ff385c;--primary-hover:#e00b41;--canvas:#fff;--surface:#f7f7f7;--hairline:#ddd;--text:#222;--muted:#6a6a6a;--shadow:rgba(0,0,0,0.02) 0 0 0 1px,rgba(0,0,0,0.04) 0 2px 6px 0,rgba(0,0,0,0.1) 0 4px 8px 0}
+    *{box-sizing:border-box} html,body{margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:radial-gradient(circle at top left, rgba(255,56,92,.08), transparent 28%),radial-gradient(circle at top right, rgba(255,56,92,.06), transparent 24%),var(--canvas);color:var(--text)}
     .wrap{width:min(1200px,calc(100% - 32px));margin:0 auto;padding:24px 0 48px}
-    header{
-      display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;
-      border-bottom:1px solid var(--hairline);padding-bottom:18px;margin-bottom:28px;
-    }
+    header{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;border-bottom:1px solid var(--hairline);padding-bottom:18px;margin-bottom:28px}
     .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .dot{width:8px;height:8px;border-radius:999px;background:var(--primary)}
     h1{margin:8px 0 0;font-size:clamp(28px,4vw,48px);line-height:1.08;letter-spacing:-.03em}
@@ -47,13 +27,10 @@
     .hint{font-size:12px;color:var(--muted)}
     .actions{display:flex;gap:12px;margin-top:6px;flex-wrap:wrap}
     button{height:48px;border:none;border-radius:12px;padding:0 18px;font-size:15px;font-weight:700;cursor:pointer}
-    .primary{background:var(--primary);color:#fff}
-    .primary:hover{background:var(--primary-hover)}
-    .secondary{background:#fff;color:var(--text);border:1px solid var(--text)}
-    .secondary:hover{background:var(--surface)}
+    .primary{background:var(--primary);color:#fff}.primary:hover{background:var(--primary-hover)}
+    .secondary{background:#fff;color:var(--text);border:1px solid var(--text)}.secondary:hover{background:var(--surface)}
     .status,.err{min-height:1.5em;line-height:1.5;font-size:14px;margin-top:10px}
-    .status{color:var(--muted)}
-    .err{color:#b32505}
+    .status{color:var(--muted)} .err{color:#b32505}
     .result{display:grid;gap:18px;align-content:start}
     .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;align-items:stretch}
     .summary{padding:22px;min-height:180px;display:grid;align-content:space-between;background:linear-gradient(135deg,#111,#2b2b2b);color:#fff}
@@ -61,23 +38,17 @@
     .summary h2{margin:8px 0 0;font-size:28px;line-height:1.1}
     .summary p{margin:10px 0 0;color:rgba(255,255,255,.8);line-height:1.55;font-size:14px}
     .astro{padding:20px;display:grid;gap:12px;align-content:start;background:var(--surface)}
-    .astro-row{display:flex;justify-content:space-between;gap:12px;font-size:14px}
-    .astro-row span:last-child{font-weight:700}
+    .astro-row{display:flex;justify-content:space-between;gap:12px;font-size:14px}.astro-row span:last-child{font-weight:700}
     .numbers{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px}
     .ball{aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-size:clamp(1rem,1.8vw,1.4rem);font-weight:900;color:#111827;background:radial-gradient(circle at 30% 30%, #fff6c7 0 18%, #ffd84d 40%, #ffb000 100%);box-shadow:var(--shadow)}
     .ball.bonus{background:radial-gradient(circle at 30% 30%, #ffd7df 0 18%, #ff8ea4 40%, #ff385c 100%);color:#fff}
-    .explain{padding:20px}
-    .explain h3{margin:0 0 12px;font-size:18px}
-    .chat{display:grid;gap:12px}
+    .explain{padding:20px}.explain h3{margin:0 0 12px;font-size:18px}.chat{display:grid;gap:12px}
     .message{max-width:86%;padding:14px 16px;border-radius:18px;line-height:1.65;white-space:pre-wrap}
-    .user{background:#111827;color:#fff;justify-self:end}
-    .assistant{background:var(--surface);border:1px solid var(--hairline);justify-self:start}
-    .chips{display:flex;flex-wrap:wrap;gap:8px}
-    .chip{border:1px solid var(--hairline);background:#fff;border-radius:9999px;padding:7px 11px;font-size:12px;color:var(--muted)}
-    .pulse{animation:pulse 1.5s ease-in-out infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
-    @media (max-width: 960px){.grid,.hero{grid-template-columns:1fr}.numbers{grid-template-columns:repeat(4,minmax(0,1fr))}.message{max-width:100%}}
-    @media (max-width: 560px){.wrap{width:min(100% - 24px,100%)}h1{font-size:28px}.numbers{grid-template-columns:repeat(3,minmax(0,1fr))}.card,.summary,.astro,.explain{border-radius:18px}}
+    .user{background:#111827;color:#fff;justify-self:end}.assistant{background:var(--surface);border:1px solid var(--hairline);justify-self:start}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}.chip{border:1px solid var(--hairline);background:#fff;border-radius:9999px;padding:7px 11px;font-size:12px;color:var(--muted)}
+    .pulse{animation:pulse 1.5s ease-in-out infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+    @media (max-width:960px){.grid,.hero{grid-template-columns:1fr}.numbers{grid-template-columns:repeat(4,minmax(0,1fr))}.message{max-width:100%}}
+    @media (max-width:560px){.wrap{width:min(100% - 24px,100%)}h1{font-size:28px}.numbers{grid-template-columns:repeat(3,minmax(0,1fr))}.card,.summary,.astro,.explain{border-radius:18px}}
   </style>
 </head>
 <body>
@@ -86,7 +57,7 @@
       <div>
         <div class="eyebrow"><span class="dot"></span> Zodiac Lotto Maker</div>
         <h1>생년월일로 별자리 기반 로또 번호를 뽑아보세요</h1>
-        <p class="lead">생년월일을 입력하면 별자리를 판별하고, OpenAI API로 그 이유를 설명하는 로또 번호 조합을 만들어줍니다. 결과는 6개 메인 번호와 1개 보너스로 보여줍니다.</p>
+        <p class="lead">생년월일을 입력하면 별자리를 판별하고, 서버가 OpenAI API를 호출해 그 이유를 설명하는 로또 번호 조합을 만들어줍니다.</p>
       </div>
       <div class="badge">OpenAI API · gpt-5.4-mini</div>
     </header>
@@ -94,25 +65,16 @@
     <section class="grid">
       <div class="card">
         <h2 class="panel-title">입력</h2>
-        <p class="panel-copy">API 키는 저장하지 않고 요청할 때만 사용합니다. 서버가 있으면 서버로 보내고, 없으면 브라우저에서 직접 OpenAI를 호출합니다.</p>
-
-        <div class="field">
-          <label for="apiKey">OpenAI API Key</label>
-          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
-          <div class="hint">배포 시에는 서버 환경변수로 옮기는 것을 권장합니다.</div>
-        </div>
-
+        <p class="panel-copy">배포된 서버 환경변수 `OPENAI_API_KEY`만 사용합니다. 브라우저에 키를 입력하지 않습니다.</p>
         <div class="field">
           <label for="birthdate">생년월일</label>
           <input id="birthdate" type="date" />
           <div class="hint">예: 1995-07-28</div>
         </div>
-
         <div class="actions">
           <button class="primary" id="drawBtn">번호 뽑기</button>
           <button class="secondary" id="resetBtn">초기화</button>
         </div>
-
         <div class="status" id="status">생년월일을 입력하면 별자리를 계산합니다.</div>
         <div class="err" id="error"></div>
       </div>
@@ -143,7 +105,6 @@
   </main>
 
   <script>
-    const apiKeyEl = document.getElementById('apiKey');
     const birthdateEl = document.getElementById('birthdate');
     const drawBtn = document.getElementById('drawBtn');
     const resetBtn = document.getElementById('resetBtn');
@@ -178,24 +139,11 @@
     function getZodiac(dateStr) {
       const [, mm, dd] = dateStr.split('-');
       const key = `${mm}-${dd}`;
-      return signs.find(sign => sign.start <= sign.end
-        ? key >= sign.start && key <= sign.end
-        : key >= sign.start || key <= sign.end) || null;
+      return signs.find(sign => sign.start <= sign.end ? key >= sign.start && key <= sign.end : key >= sign.start || key <= sign.end) || null;
     }
 
     function escapeHtml(text) {
-      return String(text)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-    }
-
-    function renderNumbers(nums) {
-      numbersEl.innerHTML = '';
-      nums.main.forEach(n => numbersEl.appendChild(makeBall(n)));
-      numbersEl.appendChild(makeBall(nums.bonus, true));
+      return String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
     }
 
     function makeBall(num, bonus = false) {
@@ -203,6 +151,12 @@
       el.className = 'ball' + (bonus ? ' bonus' : '');
       el.textContent = String(num).padStart(2, '0');
       return el;
+    }
+
+    function renderNumbers(nums) {
+      numbersEl.innerHTML = '';
+      nums.main.forEach(n => numbersEl.appendChild(makeBall(n)));
+      numbersEl.appendChild(makeBall(nums.bonus, true));
     }
 
     function renderExplanation(userText, assistantText) {
@@ -215,52 +169,28 @@
     function renderSummary(sign) {
       signLabelEl.textContent = sign ? sign.name : '별자리';
       summaryTitleEl.textContent = sign ? `${sign.name} 조합 준비 완료` : '아직 추첨 전입니다';
-      summaryTextEl.textContent = sign
-        ? `${sign.element}의 기운과 ${sign.trait} 키워드를 바탕으로 번호를 추천합니다.`
-        : '입력을 마치고 번호 뽑기를 누르면, 추천 번호와 이유가 이곳에 표시됩니다.';
-      chipsEl.innerHTML = sign ? `
-        <span class="chip">${sign.element}</span>
-        <span class="chip">${sign.trait}</span>
-        <span class="chip">${sign.vibe}</span>
-      ` : '';
+      summaryTextEl.textContent = sign ? `${sign.element}의 기운과 ${sign.trait} 키워드를 바탕으로 번호를 추천합니다.` : '입력을 마치고 번호 뽑기를 누르면, 추천 번호와 이유가 이곳에 표시됩니다.';
+      chipsEl.innerHTML = sign ? `<span class="chip">${sign.element}</span><span class="chip">${sign.trait}</span><span class="chip">${sign.vibe}</span>` : '';
     }
 
-    async function callLocalServer(apiKey, birthday, sign) {
+    async function requestRecommendation(birthday, sign) {
       const response = await fetch(`${apiBase}/api/recommend`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey, birthday, sign }),
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ birthday, sign }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || '서버 요청에 실패했습니다.');
       return data;
     }
 
-    async function requestRecommendation(apiKey, birthday, sign) {
-      try {
-        return await callLocalServer(apiKey, birthday, sign);
-      } catch (localError) {
-        if (localError instanceof TypeError || /fetch/i.test(localError.message)) {
-          throw new Error('로컬 서버에 연결할 수 없습니다. 터미널에서 `node server.js`를 실행한 뒤 다시 시도해 주세요.');
-        }
-        throw localError;
-      }
-    }
-
     drawBtn.addEventListener('click', async () => {
       errorEl.textContent = '';
-      const apiKey = apiKeyEl.value.trim();
       const birthday = birthdateEl.value;
-
-      if (!apiKey) {
-        errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
-        return;
-      }
       if (!birthday) {
         errorEl.textContent = '생년월일을 입력해 주세요.';
         return;
       }
-
       const sign = getZodiac(birthday);
       if (!sign) {
         errorEl.textContent = '별자리를 계산할 수 없습니다.';
@@ -274,10 +204,8 @@
       drawBtn.classList.add('pulse');
 
       try {
-        const data = await requestRecommendation(apiKey, birthday, sign);
-        if (!data?.main?.length || typeof data.explanation !== 'string') {
-          throw new Error('응답 형식이 올바르지 않습니다.');
-        }
+        const data = await requestRecommendation(birthday, sign);
+        if (!data?.main?.length || typeof data.explanation !== 'string') throw new Error('응답 형식이 올바르지 않습니다.');
         renderNumbers(data);
         renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, data.explanation);
         mainCountEl.textContent = `${data.main.length}개`;
@@ -295,7 +223,6 @@
     });
 
     resetBtn.addEventListener('click', () => {
-      apiKeyEl.value = '';
       birthdateEl.value = '';
       numbersEl.innerHTML = '';
       chatEl.innerHTML = '';
@@ -309,7 +236,6 @@
       statusEl.textContent = '생년월일을 입력하면 별자리를 계산합니다.';
       errorEl.textContent = '';
     });
-
     renderSummary(null);
   </script>
 </body>
