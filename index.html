@@ -181,37 +181,17 @@
       chipsEl.innerHTML = sign ? `<span class="chip">${sign.element}</span><span class="chip">${sign.trait}</span><span class="chip">${sign.vibe}</span>` : '';
     }
 
-    function createFallbackRecommendation(sign, birthday) {
-      const seedText = `${birthday}|${sign.name}|${sign.element}|${sign.trait}|${sign.vibe}`;
-      let seed = 0;
-      for (const ch of seedText) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-      const picks = new Set();
-      while (picks.size < 7) {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        picks.add((seed % 45) + 1);
-      }
-      const values = [...picks].sort((a, b) => a - b);
-      return {
-        main: values.slice(0, 6),
-        bonus: values[6],
-        explanation: `${sign.name}의 ${sign.element} 기운과 ${sign.trait} 성향을 바탕으로 만든 로컬 예비 번호입니다. OpenAI 호출이 실패해도 화면에는 결과가 보이도록 했습니다.`,
-        source: 'fallback',
-      };
-    }
-
     async function requestRecommendation(apiKey, birthday, sign) {
-      try {
-        const response = await fetch('/api/recommend', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, birthday, sign }),
-        });
-        const data = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(data?.error || '서버 요청에 실패했습니다.');
-        return { ...data, source: 'openai' };
-      } catch {
-        return createFallbackRecommendation(sign, birthday);
+      const response = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, birthday, sign }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || '서버 요청에 실패했습니다.');
       }
+      return { ...data, source: 'openai' };
     }
 
     async function saveRecommendationToSupabase(payload) {
@@ -267,10 +247,8 @@
         renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, data.explanation);
         mainCountEl.textContent = `${data.main.length}개`;
         bonusCountEl.textContent = `${String(data.bonus).padStart(2, '0')}`;
-        aiStateEl.textContent = data.source === 'fallback' ? '로컬 예비값' : '완료';
-        statusEl.textContent = data.source === 'fallback'
-          ? `${sign.name} 기준 예비 번호를 먼저 보여드렸습니다.`
-          : `${sign.name} 기반 추첨이 완료되었습니다.`;
+        aiStateEl.textContent = '완료';
+        statusEl.textContent = `${sign.name} 기반 추첨이 완료되었습니다.`;
         summaryTitleEl.textContent = `${sign.name} 추천 번호`;
 
         saveRecommendationToSupabase({
@@ -286,13 +264,8 @@
           created_at: new Date().toISOString(),
         }).catch(() => {});
       } catch (err) {
-        const fallback = createFallbackRecommendation(sign, birthday);
-        renderNumbers(fallback);
-        renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, fallback.explanation);
-        mainCountEl.textContent = `${fallback.main.length}개`;
-        bonusCountEl.textContent = `${String(fallback.bonus).padStart(2, '0')}`;
-        aiStateEl.textContent = '로컬 예비값';
-        statusEl.textContent = `${sign.name} 기준 예비 번호를 표시했습니다.`;
+        aiStateEl.textContent = '실패';
+        statusEl.textContent = 'OpenAI 호출이 실패했습니다.';
         errorEl.textContent = err.message || '서버 상태를 확인해 주세요.';
       } finally {
         drawBtn.disabled = false;

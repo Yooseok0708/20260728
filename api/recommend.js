@@ -46,7 +46,7 @@ function buildPrompt(sign, birthday) {
 }
 
 async function openaiRequest(apiKey, requestBody) {
-  const res = await fetch('https://api.openai.com/v1/responses', {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -54,24 +54,7 @@ async function openaiRequest(apiKey, requestBody) {
     },
     body: requestBody,
   });
-
-  return {
-    ok: res.ok,
-    status: res.status,
-    raw: await res.text(),
-  };
-}
-
-function extractOutputText(data) {
-  if (typeof data.output_text === 'string' && data.output_text.trim()) return data.output_text;
-  const output = Array.isArray(data.output) ? data.output : [];
-  for (const item of output) {
-    const content = Array.isArray(item?.content) ? item.content : [];
-    for (const part of content) {
-      if (part?.type === 'output_text' && typeof part.text === 'string') return part.text;
-    }
-  }
-  return '';
+  return { ok: res.ok, status: res.status, raw: await res.text() };
 }
 
 module.exports = async (req, res) => {
@@ -95,29 +78,14 @@ module.exports = async (req, res) => {
 
   const requestBody = JSON.stringify({
     model: 'gpt-5.4-mini',
-    input: [
-      {
-        role: 'system',
-        content: [
-          {
-            type: 'input_text',
-            text: '당신은 로또 번호 추천을 돕는 친절한 한국어 챗봇입니다. 반드시 JSON만 반환하세요.',
-          },
-        ],
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: buildPrompt(sign, payload.birthday),
-          },
-        ],
-      },
+    temperature: 0.7,
+    messages: [
+      { role: 'system', content: '당신은 로또 번호 추천을 돕는 친절한 한국어 챗봇입니다. 반드시 JSON만 반환하세요.' },
+      { role: 'user', content: buildPrompt(sign, payload.birthday) },
     ],
-    text: {
-      format: {
-        type: 'json_schema',
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
         name: 'lottery_recommendation',
         schema: {
           type: 'object',
@@ -143,8 +111,8 @@ module.exports = async (req, res) => {
     return send(res, 502, { error: `OpenAI 응답 JSON 파싱 실패: ${response.raw}` });
   }
 
-  const text = extractOutputText(data);
-  if (!text) return send(res, 502, { error: 'OpenAI 응답에서 텍스트를 찾지 못했습니다.' });
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) return send(res, 502, { error: `OpenAI 응답에서 텍스트를 찾지 못했습니다: ${response.raw}` });
 
   let parsed;
   try {
