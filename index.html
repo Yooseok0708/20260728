@@ -200,6 +200,13 @@
       return new Date().toISOString().slice(0, 10);
     }
 
+    function getRandomBirthday() {
+      const year = 1970 + Math.floor(Math.random() * 35);
+      const month = String(1 + Math.floor(Math.random() * 12)).padStart(2, '0');
+      const day = String(1 + Math.floor(Math.random() * 28)).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
     async function requestRecommendation(apiKey, birthday, sign) {
       const response = await fetch('/api/recommend', {
         method: 'POST',
@@ -309,7 +316,7 @@
     autoDrawBtn.addEventListener('click', async () => {
       errorEl.textContent = '';
       const apiKey = apiKeyEl.value.trim();
-      const birthday = getTodayBirthday();
+      const birthday = getRandomBirthday();
       trackEvent('lotto_auto_draw_click', { event_category: 'engagement' });
       if (!apiKey) {
         errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
@@ -325,7 +332,7 @@
       }
 
       renderSummary(sign);
-      statusEl.textContent = `${sign.name} 기준 자동 추천을 계산하는 중입니다.`;
+      statusEl.textContent = `${sign.name} 기준 무작위 추천을 계산하는 중입니다.`;
       aiStateEl.textContent = '생성 중';
       autoDrawBtn.disabled = true;
       autoDrawBtn.classList.add('pulse');
@@ -337,8 +344,8 @@
         mainCountEl.textContent = `${data.main.length}개`;
         bonusCountEl.textContent = `${String(data.bonus).padStart(2, '0')}`;
         aiStateEl.textContent = '완료';
-        statusEl.textContent = `${sign.name} 기준 자동 추천이 완료되었습니다.`;
-        summaryTitleEl.textContent = `${sign.name} 자동 추천 번호`;
+        statusEl.textContent = `${sign.name} 기준 무작위 추천이 완료되었습니다.`;
+        summaryTitleEl.textContent = `${sign.name} 무작위 추천 번호`;
         trackEvent('lotto_auto_draw_success', {
           event_category: 'engagement',
           zodiac_sign: sign.name,
