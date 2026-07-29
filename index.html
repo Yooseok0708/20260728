@@ -65,7 +65,12 @@
     <section class="grid">
       <div class="card">
         <h2 class="panel-title">입력</h2>
-        <p class="panel-copy">OpenAI API Key는 Vercel 환경변수 `OPENAI_API_KEY`에서 읽습니다. 화면에서는 생년월일만 입력하면 됩니다.</p>
+        <p class="panel-copy">OpenAI API Key를 직접 넣고 바로 추첨할 수 있습니다. 키는 요청할 때만 사용하며 저장하지 않습니다.</p>
+        <div class="field">
+          <label for="apiKey">OpenAI API Key</label>
+          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+          <div class="hint">브라우저에서 직접 입력한 뒤, 요청할 때만 서버로 보냅니다.</div>
+        </div>
         <div class="field">
           <label for="birthdate">생년월일</label>
           <input id="birthdate" type="date" />
@@ -105,6 +110,7 @@
   </main>
 
   <script>
+    const apiKeyEl = document.getElementById('apiKey');
     const birthdateEl = document.getElementById('birthdate');
     const drawBtn = document.getElementById('drawBtn');
     const resetBtn = document.getElementById('resetBtn');
@@ -193,12 +199,12 @@
       };
     }
 
-    async function requestRecommendation(birthday, sign) {
+    async function requestRecommendation(apiKey, birthday, sign) {
       try {
         const response = await fetch('/api/recommend', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ birthday, sign }),
+          body: JSON.stringify({ apiKey, birthday, sign }),
         });
         const data = await response.json().catch(() => null);
         if (!response.ok) throw new Error(data?.error || '서버 요청에 실패했습니다.');
@@ -232,7 +238,12 @@
 
     drawBtn.addEventListener('click', async () => {
       errorEl.textContent = '';
+      const apiKey = apiKeyEl.value.trim();
       const birthday = birthdateEl.value;
+      if (!apiKey) {
+        errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
+        return;
+      }
       if (!birthday) {
         errorEl.textContent = '생년월일을 입력해 주세요.';
         return;
@@ -251,7 +262,7 @@
       drawBtn.classList.add('pulse');
 
       try {
-        const data = await requestRecommendation(birthday, sign);
+        const data = await requestRecommendation(apiKey, birthday, sign);
         renderNumbers(data);
         renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, data.explanation);
         mainCountEl.textContent = `${data.main.length}개`;
@@ -291,6 +302,7 @@
 
     resetBtn.addEventListener('click', () => {
       birthdateEl.value = '';
+      apiKeyEl.value = '';
       numbersEl.innerHTML = '';
       chatEl.innerHTML = '';
       chipsEl.innerHTML = '';
