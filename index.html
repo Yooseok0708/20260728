@@ -82,7 +82,7 @@
         <div class="field">
           <label for="birthdate">생년월일</label>
           <input id="birthdate" type="date" />
-          <div class="hint">예: 1995-07-28</div>
+          <div class="hint">입력하면 그 날짜 기준, 비워두면 오늘 날짜 기준으로 추천합니다.</div>
         </div>
         <div class="actions">
           <button class="primary" id="drawBtn">번호 뽑기</button>
@@ -194,6 +194,10 @@
       window.gtag('event', name, params);
     }
 
+    function getTodayBirthday() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
     async function requestRecommendation(apiKey, birthday, sign) {
       const response = await fetch('/api/recommend', {
         method: 'POST',
@@ -233,7 +237,7 @@
     drawBtn.addEventListener('click', async () => {
       errorEl.textContent = '';
       const apiKey = apiKeyEl.value.trim();
-      const birthday = birthdateEl.value;
+      const birthday = birthdateEl.value || getTodayBirthday();
       trackEvent('lotto_draw_click', { event_category: 'engagement' });
       if (!apiKey) {
         errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
