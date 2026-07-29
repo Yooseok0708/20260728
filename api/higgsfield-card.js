@@ -39,31 +39,31 @@ function getZodiac(dateStr) {
   return signs.find(sign => sign.start <= sign.end ? key >= sign.start && key <= sign.end : key >= sign.start || key <= sign.end) || null;
 }
 
-async function callHiggsfield(credentials, prompt) {
-  const res = await fetch('https://platform.higgsfield.ai/v1/text2image/soul', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Key ${credentials}`,
-      'User-Agent': 'higgsfield-server-js/2.0',
-    },
-    body: JSON.stringify({
+async function tryV2(credentials, prompt) {
+  const { higgsfield, config } = require('@higgsfield/client/v2');
+  config({ credentials });
+  return higgsfield.subscribe('text2image_soul_v2', {
+    input: {
+      aspect_ratio: '1:1',
       prompt,
-      width_and_height: 'SQUARE_1536x1536',
-      quality: 'HD',
-      batch_size: 'SINGLE',
-    }),
+      quality: '2k',
+    },
+    withPolling: true,
   });
+}
 
-  const raw = await res.text().catch(() => '');
-  let json = null;
-  try {
-    json = raw ? JSON.parse(raw) : null;
-  } catch {
-    json = null;
-  }
-
-  return { ok: res.ok, status: res.status, raw, json };
+async function tryV1(credentials, prompt) {
+  const { HiggsfieldClient } = require('@higgsfield/client');
+  const [apiKey, apiSecret] = credentials.split(':');
+  const client = new HiggsfieldClient({ apiKey: apiKey || '', apiSecret: apiSecret || '' });
+  return client.generate('/v1/text2image/soul', {
+    prompt,
+    width_and_height: 'SQUARE_1536x1536',
+    quality: 'HD',
+    batch_size: 'SINGLE',
+  }, {
+    withPolling: true,
+  });
 }
 
 module.exports = async (req, res) => {
@@ -88,28 +88,32 @@ module.exports = async (req, res) => {
     return send(res, 400, { error: '추천 번호가 필요합니다.' });
   }
 
+  const prompt = buildPrompt(sign, payload.birthday, payload.numbers);
+
   try {
-    const result = await callHiggsfield(credentials, buildPrompt(sign, payload.birthday, payload.numbers));
-    if (!result.ok) {
-      return send(res, 502, {
-        error: `Higgsfield submit failed (${result.status})`,
-        detail: result.json || result.raw || '',
-      });
+    let jobSet;
+    let mode = 'v2';
+    try {
+      jobSet = await tryV2(credentials, prompt);
+    } catch (v2Error) {
+      mode = 'v1';
+      jobSet = await tryV1(credentials, prompt);
+      if (!jobSet) throw v2Error;
     }
 
-    const requestId = result.json?.request_id;
-    const statusUrl = result.json?.status_url;
-    if (!requestId || !statusUrl) {
+    const imageUrl = jobSet?.jobs?.[0]?.results?.raw?.url || jobSet?.jobs?.[0]?.results?.min?.url;
+    if (!imageUrl) {
       return send(res, 502, {
-        error: 'Higgsfield response missing request_id/status_url',
-        detail: result.json || result.raw || '',
+        error: '이미지 URL을 찾지 못했습니다.',
+        detail: { mode, jobSet },
       });
     }
 
     return send(res, 200, {
-      requestId,
-      statusUrl,
-      status: 'submitted',
+      imageUrl,
+      requestId: jobSet.id || jobSet.requestId || null,
+      status: jobSet.isCompleted ? 'completed' : 'unknown',
+      mode,
     });
   } catch (error) {
     return send(res, 502, {
