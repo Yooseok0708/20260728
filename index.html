@@ -86,6 +86,7 @@
         </div>
         <div class="actions">
           <button class="primary" id="drawBtn">번호 뽑기</button>
+          <button class="secondary" id="autoDrawBtn">번호추천받기</button>
           <button class="secondary" id="resetBtn">초기화</button>
         </div>
         <div class="status" id="status">생년월일을 입력하면 별자리를 계산합니다.</div>
@@ -121,6 +122,7 @@
     const apiKeyEl = document.getElementById('apiKey');
     const birthdateEl = document.getElementById('birthdate');
     const drawBtn = document.getElementById('drawBtn');
+    const autoDrawBtn = document.getElementById('autoDrawBtn');
     const resetBtn = document.getElementById('resetBtn');
     const statusEl = document.getElementById('status');
     const errorEl = document.getElementById('error');
@@ -301,6 +303,58 @@
       } finally {
         drawBtn.disabled = false;
         drawBtn.classList.remove('pulse');
+      }
+    });
+
+    autoDrawBtn.addEventListener('click', async () => {
+      errorEl.textContent = '';
+      const apiKey = apiKeyEl.value.trim();
+      const birthday = getTodayBirthday();
+      trackEvent('lotto_auto_draw_click', { event_category: 'engagement' });
+      if (!apiKey) {
+        errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
+        trackEvent('lotto_draw_error', { event_category: 'engagement', reason: 'missing_api_key' });
+        return;
+      }
+
+      const sign = getZodiac(birthday);
+      if (!sign) {
+        errorEl.textContent = '별자리를 계산할 수 없습니다.';
+        trackEvent('lotto_draw_error', { event_category: 'engagement', reason: 'zodiac_failed' });
+        return;
+      }
+
+      renderSummary(sign);
+      statusEl.textContent = `${sign.name} 기준 자동 추천을 계산하는 중입니다.`;
+      aiStateEl.textContent = '생성 중';
+      autoDrawBtn.disabled = true;
+      autoDrawBtn.classList.add('pulse');
+
+      try {
+        const data = await requestRecommendation(apiKey, birthday, sign);
+        renderNumbers(data);
+        renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, data.explanation);
+        mainCountEl.textContent = `${data.main.length}개`;
+        bonusCountEl.textContent = `${String(data.bonus).padStart(2, '0')}`;
+        aiStateEl.textContent = '완료';
+        statusEl.textContent = `${sign.name} 기준 자동 추천이 완료되었습니다.`;
+        summaryTitleEl.textContent = `${sign.name} 자동 추천 번호`;
+        trackEvent('lotto_auto_draw_success', {
+          event_category: 'engagement',
+          zodiac_sign: sign.name,
+          birthday,
+        });
+      } catch (err) {
+        aiStateEl.textContent = '실패';
+        statusEl.textContent = 'OpenAI 호출이 실패했습니다.';
+        errorEl.textContent = err.message || '서버 상태를 확인해 주세요.';
+        trackEvent('lotto_draw_error', {
+          event_category: 'engagement',
+          reason: 'openai_failed',
+        });
+      } finally {
+        autoDrawBtn.disabled = false;
+        autoDrawBtn.classList.remove('pulse');
       }
     });
 
