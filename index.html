@@ -57,15 +57,15 @@
       <div>
         <div class="eyebrow"><span class="dot"></span> Zodiac Lotto Maker</div>
         <h1>생년월일로 별자리 기반 로또 번호를 뽑아보세요</h1>
-        <p class="lead">생년월일을 입력하면 별자리를 판별하고, 서버가 OpenAI API를 호출해 그 이유를 설명하는 로또 번호 조합을 만들어줍니다.</p>
+        <p class="lead">생년월일을 입력하면 별자리를 판별하고, 가능하면 OpenAI로 번호와 이유를 만든 뒤 Supabase에 저장합니다. 네트워크가 실패해도 예비 번호를 보여줍니다.</p>
       </div>
-      <div class="badge">OpenAI API · gpt-5.4-mini</div>
+      <div class="badge">OpenAI API + Supabase</div>
     </header>
 
     <section class="grid">
       <div class="card">
         <h2 class="panel-title">입력</h2>
-        <p class="panel-copy">API key를 입력하면 그 값을 우선 사용하고, 서버 환경변수는 보조로 남겨둡니다.</p>
+        <p class="panel-copy">OpenAI API Key를 넣으면 AI 추천을 시도하고, Supabase 설정이 있으면 추첨 기록을 저장합니다.</p>
         <div class="field">
           <label for="apiKey">OpenAI API Key</label>
           <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
@@ -125,19 +125,23 @@
     const mainCountEl = document.getElementById('mainCount');
     const bonusCountEl = document.getElementById('bonusCount');
     const aiStateEl = document.getElementById('aiState');
+    const SUPABASE_URL = window.SUPABASE_URL || '';
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+    const SUPABASE_TABLE = window.SUPABASE_TABLE || 'lottery_draws';
+
     const signs = [
-      { name: '염소자리', start: '12-22', end: '01-19', element: '땅', trait: '꾸준함', vibe: '안정' },
-      { name: '물병자리', start: '01-20', end: '02-18', element: '공기', trait: '독창성', vibe: '변주' },
-      { name: '물고기자리', start: '02-19', end: '03-20', element: '물', trait: '직관', vibe: '감성' },
       { name: '양자리', start: '03-21', end: '04-19', element: '불', trait: '시작', vibe: '추진' },
-      { name: '황소자리', start: '04-20', end: '05-20', element: '땅', trait: '집중', vibe: '균형' },
+      { name: '황소자리', start: '04-20', end: '05-20', element: '땅', trait: '지속', vibe: '균형' },
       { name: '쌍둥이자리', start: '05-21', end: '06-21', element: '공기', trait: '호기심', vibe: '변화' },
-      { name: '게자리', start: '06-22', end: '07-22', element: '물', trait: '보호', vibe: '정서' },
+      { name: '게자리', start: '06-22', end: '07-22', element: '물', trait: '보호', vibe: '안정' },
       { name: '사자자리', start: '07-23', end: '08-22', element: '불', trait: '존재감', vibe: '자신감' },
-      { name: '처녀자리', start: '08-23', end: '09-22', element: '땅', trait: '정교함', vibe: '정리' },
+      { name: '처녀자리', start: '08-23', end: '09-22', element: '땅', trait: '정확', vibe: '정리' },
       { name: '천칭자리', start: '09-23', end: '10-22', element: '공기', trait: '조화', vibe: '선택' },
-      { name: '전갈자리', start: '10-23', end: '11-22', element: '물', trait: '집중력', vibe: '강도' },
-      { name: '사수자리', start: '11-23', end: '12-21', element: '불', trait: '확장', vibe: '도전' },
+      { name: '전갈자리', start: '10-23', end: '11-22', element: '물', trait: '집중', vibe: '강도' },
+      { name: '사수자리', start: '11-23', end: '12-21', element: '불', trait: '탐험', vibe: '확장' },
+      { name: '염소자리', start: '12-22', end: '01-19', element: '땅', trait: '계획', vibe: '절제' },
+      { name: '물병자리', start: '01-20', end: '02-18', element: '공기', trait: '독창', vibe: '변주' },
+      { name: '물고기자리', start: '02-19', end: '03-20', element: '물', trait: '직관', vibe: '감성' },
     ];
 
     function getZodiac(dateStr) {
@@ -177,15 +181,59 @@
       chipsEl.innerHTML = sign ? `<span class="chip">${sign.element}</span><span class="chip">${sign.trait}</span><span class="chip">${sign.vibe}</span>` : '';
     }
 
+    function createFallbackRecommendation(sign, birthday) {
+      const seedText = `${birthday}|${sign.name}|${sign.element}|${sign.trait}|${sign.vibe}`;
+      let seed = 0;
+      for (const ch of seedText) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+      const picks = new Set();
+      while (picks.size < 7) {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        picks.add((seed % 45) + 1);
+      }
+      const values = [...picks].sort((a, b) => a - b);
+      return {
+        main: values.slice(0, 6),
+        bonus: values[6],
+        explanation: `${sign.name}의 ${sign.element} 기운과 ${sign.trait} 성향을 바탕으로 만든 로컬 예비 번호입니다. 네트워크나 OpenAI 호출이 실패해도 화면에는 결과가 보이도록 했습니다.`,
+        source: 'fallback',
+      };
+    }
+
     async function requestRecommendation(apiKey, birthday, sign) {
-      const response = await fetch('/api/recommend', {
+      try {
+        const response = await fetch('/api/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey, birthday, sign }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || '서버 요청에 실패했습니다.');
+        return { ...data, source: 'openai' };
+      } catch {
+        return createFallbackRecommendation(sign, birthday);
+      }
+    }
+
+    async function saveRecommendationToSupabase(payload) {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return { ok: false, skipped: true };
+
+      const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${SUPABASE_TABLE}`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ apiKey, birthday, sign }),
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(payload),
       });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || '서버 요청에 실패했습니다.');
-      return data;
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(text || `Supabase 저장 실패(${response.status})`);
+      }
+
+      return { ok: true };
     }
 
     drawBtn.addEventListener('click', async () => {
@@ -214,17 +262,37 @@
 
       try {
         const data = await requestRecommendation(apiKey, birthday, sign);
-        if (!data?.main?.length || typeof data.explanation !== 'string') throw new Error('응답 형식이 올바르지 않습니다.');
         renderNumbers(data);
         renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, data.explanation);
         mainCountEl.textContent = `${data.main.length}개`;
         bonusCountEl.textContent = `${String(data.bonus).padStart(2, '0')}`;
-        aiStateEl.textContent = '완료';
-        statusEl.textContent = `${sign.name} 기반 추첨이 완료되었습니다.`;
+        aiStateEl.textContent = data.source === 'fallback' ? '로컬 예비값' : '완료';
+        statusEl.textContent = data.source === 'fallback'
+          ? `${sign.name} 기준 예비 번호를 먼저 보여드렸습니다.`
+          : `${sign.name} 기반 추첨이 완료되었습니다.`;
         summaryTitleEl.textContent = `${sign.name} 추천 번호`;
+
+        saveRecommendationToSupabase({
+          birthday,
+          sign_name: sign.name,
+          sign_element: sign.element,
+          sign_trait: sign.trait,
+          sign_vibe: sign.vibe,
+          main_numbers: data.main,
+          bonus_number: data.bonus,
+          explanation: data.explanation,
+          source: data.source,
+          created_at: new Date().toISOString(),
+        }).catch(() => {});
       } catch (err) {
+        const fallback = createFallbackRecommendation(sign, birthday);
+        renderNumbers(fallback);
+        renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, fallback.explanation);
+        mainCountEl.textContent = `${fallback.main.length}개`;
+        bonusCountEl.textContent = `${String(fallback.bonus).padStart(2, '0')}`;
+        aiStateEl.textContent = '로컬 예비값';
+        statusEl.textContent = `${sign.name} 기준 예비 번호를 표시했습니다.`;
         errorEl.textContent = err.message || '서버 상태를 확인해 주세요.';
-        aiStateEl.textContent = '실패';
       } finally {
         drawBtn.disabled = false;
         drawBtn.classList.remove('pulse');
@@ -246,6 +314,7 @@
       statusEl.textContent = '생년월일을 입력하면 별자리를 계산합니다.';
       errorEl.textContent = '';
     });
+
     renderSummary(null);
   </script>
 </body>
