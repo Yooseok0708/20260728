@@ -189,6 +189,11 @@
       chipsEl.innerHTML = sign ? `<span class="chip">${sign.element}</span><span class="chip">${sign.trait}</span><span class="chip">${sign.vibe}</span>` : '';
     }
 
+    function trackEvent(name, params = {}) {
+      if (typeof window.gtag !== 'function') return;
+      window.gtag('event', name, params);
+    }
+
     async function requestRecommendation(apiKey, birthday, sign) {
       const response = await fetch('/api/recommend', {
         method: 'POST',
@@ -229,18 +234,22 @@
       errorEl.textContent = '';
       const apiKey = apiKeyEl.value.trim();
       const birthday = birthdateEl.value;
+      trackEvent('lotto_draw_click', { event_category: 'engagement' });
       if (!apiKey) {
         errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
+        trackEvent('lotto_draw_error', { event_category: 'engagement', reason: 'missing_api_key' });
         return;
       }
       if (!birthday) {
         errorEl.textContent = '생년월일을 입력해 주세요.';
+        trackEvent('lotto_draw_error', { event_category: 'engagement', reason: 'missing_birthday' });
         return;
       }
 
       const sign = getZodiac(birthday);
       if (!sign) {
         errorEl.textContent = '별자리를 계산할 수 없습니다.';
+        trackEvent('lotto_draw_error', { event_category: 'engagement', reason: 'zodiac_failed' });
         return;
       }
 
@@ -259,6 +268,11 @@
         aiStateEl.textContent = '완료';
         statusEl.textContent = `${sign.name} 기반 추첨이 완료되었습니다.`;
         summaryTitleEl.textContent = `${sign.name} 추천 번호`;
+        trackEvent('lotto_draw_success', {
+          event_category: 'engagement',
+          zodiac_sign: sign.name,
+          birthday,
+        });
 
         saveRecommendationToSupabase({
           birthday,
@@ -276,6 +290,10 @@
         aiStateEl.textContent = '실패';
         statusEl.textContent = 'OpenAI 호출이 실패했습니다.';
         errorEl.textContent = err.message || '서버 상태를 확인해 주세요.';
+        trackEvent('lotto_draw_error', {
+          event_category: 'engagement',
+          reason: 'openai_failed',
+        });
       } finally {
         drawBtn.disabled = false;
         drawBtn.classList.remove('pulse');
