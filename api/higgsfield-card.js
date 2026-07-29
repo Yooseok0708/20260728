@@ -39,6 +39,33 @@ function getZodiac(dateStr) {
   return signs.find(sign => sign.start <= sign.end ? key >= sign.start && key <= sign.end : key >= sign.start || key <= sign.end) || null;
 }
 
+async function callHiggsfield(credentials, prompt) {
+  const res = await fetch('https://platform.higgsfield.ai/v1/text2image/soul', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Key ${credentials}`,
+      'User-Agent': 'higgsfield-server-js/2.0',
+    },
+    body: JSON.stringify({
+      prompt,
+      width_and_height: 'SQUARE_1536x1536',
+      quality: 'HD',
+      batch_size: 'SINGLE',
+    }),
+  });
+
+  const raw = await res.text().catch(() => '');
+  let json = null;
+  try {
+    json = raw ? JSON.parse(raw) : null;
+  } catch {
+    json = null;
+  }
+
+  return { ok: res.ok, status: res.status, raw, json };
+}
+
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, {});
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
@@ -62,33 +89,27 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { HiggsfieldClient } = require('@higgsfield/client');
-    const helpers = require('@higgsfield/client/helpers');
-    const [apiKey, apiSecret] = credentials.split(':');
+    const result = await callHiggsfield(credentials, buildPrompt(sign, payload.birthday, payload.numbers));
+    if (!result.ok) {
+      return send(res, 502, {
+        error: `Higgsfield submit failed (${result.status})`,
+        detail: result.json || result.raw || '',
+      });
+    }
 
-    const client = new HiggsfieldClient({
-      apiKey: apiKey || '',
-      apiSecret: apiSecret || '',
-    });
-
-    const jobSet = await client.generate('/v1/text2image/soul', {
-      prompt: buildPrompt(sign, payload.birthday, payload.numbers),
-      width_and_height: helpers.SoulSize.SQUARE_1536x1536,
-      quality: helpers.SoulQuality.HD,
-      batch_size: helpers.BatchSize.SINGLE,
-    }, {
-      withPolling: true,
-    });
-
-    const imageUrl = jobSet?.jobs?.[0]?.results?.raw?.url || jobSet?.jobs?.[0]?.results?.min?.url;
-    if (!imageUrl) {
-      return send(res, 502, { error: '이미지 URL을 찾지 못했습니다.' });
+    const requestId = result.json?.request_id;
+    const statusUrl = result.json?.status_url;
+    if (!requestId || !statusUrl) {
+      return send(res, 502, {
+        error: 'Higgsfield response missing request_id/status_url',
+        detail: result.json || result.raw || '',
+      });
     }
 
     return send(res, 200, {
-      imageUrl,
-      requestId: jobSet.id || jobSet.requestId || null,
-      status: jobSet.isCompleted ? 'completed' : 'unknown',
+      requestId,
+      statusUrl,
+      status: 'submitted',
     });
   } catch (error) {
     return send(res, 502, {
