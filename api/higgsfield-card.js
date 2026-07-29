@@ -39,10 +39,6 @@ function getZodiac(dateStr) {
   return signs.find(sign => sign.start <= sign.end ? key >= sign.start && key <= sign.end : key >= sign.start || key <= sign.end) || null;
 }
 
-async function loadHiggsfield() {
-  return import('@higgsfield/client/v2');
-}
-
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, {});
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
@@ -66,15 +62,21 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { higgsfield, config } = await loadHiggsfield();
-    config({ credentials });
+    const { HiggsfieldClient } = require('@higgsfield/client');
+    const helpers = require('@higgsfield/client/helpers');
+    const [apiKey, apiSecret] = credentials.split(':');
 
-    const jobSet = await higgsfield.subscribe('text2image_soul_v2', {
-      input: {
-        prompt: buildPrompt(sign, payload.birthday, payload.numbers),
-        aspect_ratio: '1:1',
-        quality: '2k',
-      },
+    const client = new HiggsfieldClient({
+      apiKey: apiKey || '',
+      apiSecret: apiSecret || '',
+    });
+
+    const jobSet = await client.generate('/v1/text2image/soul', {
+      prompt: buildPrompt(sign, payload.birthday, payload.numbers),
+      width_and_height: helpers.SoulSize.SQUARE_1536x1536,
+      quality: helpers.SoulQuality.HD,
+      batch_size: helpers.BatchSize.SINGLE,
+    }, {
       withPolling: true,
     });
 
