@@ -64,6 +64,9 @@
     .pulse{animation:pulse 1.5s ease-in-out infinite}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
     .generated-card{width:100%;margin-top:16px;border-radius:18px;border:1px solid var(--hairline);box-shadow:var(--shadow)}
+    .card-shell{display:grid;gap:10px;margin-top:14px}
+    .card-note{font-size:13px;color:var(--muted)}
+    .card-status{font-size:13px;font-weight:700;color:var(--primary)}
     @media (max-width:960px){.grid,.hero{grid-template-columns:1fr}.numbers{grid-template-columns:repeat(4,minmax(0,1fr))}.message{max-width:100%}}
     @media (max-width:560px){.wrap{width:min(100% - 24px,100%)}h1{font-size:28px}.numbers{grid-template-columns:repeat(3,minmax(0,1fr))}.card,.summary,.astro,.explain{border-radius:18px}}
   </style>
@@ -124,6 +127,10 @@
           </div>
         </div>
         <div class="numbers" id="numbers" aria-live="polite"></div>
+        <div class="card-shell">
+          <div class="card-note" id="cardNote">별자리 카드 이미지가 여기에 표시됩니다.</div>
+          <div class="card-status" id="cardStatus"></div>
+        </div>
         <div class="explain">
           <h3>왜 이 번호인가요?</h3>
           <div class="chat" id="chat"></div>
@@ -150,6 +157,8 @@
     const mainCountEl = document.getElementById('mainCount');
     const bonusCountEl = document.getElementById('bonusCount');
     const aiStateEl = document.getElementById('aiState');
+    const cardNoteEl = document.getElementById('cardNote');
+    const cardStatusEl = document.getElementById('cardStatus');
     const SUPABASE_URL = window.SUPABASE_URL || '';
     const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
     const SUPABASE_TABLE = window.SUPABASE_TABLE || 'lottery_draws';
@@ -276,10 +285,66 @@
         img = document.createElement('img');
         img.id = 'cardImage';
         img.className = 'generated-card';
-        numbersEl.insertAdjacentElement('afterend', img);
+        document.querySelector('.card-shell').appendChild(img);
       }
       img.src = url;
       img.alt = alt;
+    }
+
+    function buildFallbackCard(sign, numbers, birthday) {
+      const title = `${sign.name} 별자리 카드`;
+      const numbersText = `${numbers.main.join(' · ')} + ${numbers.bonus}`;
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+          <defs>
+            <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+              <stop offset="0%" stop-color="#15276d"/>
+              <stop offset="55%" stop-color="#07133e"/>
+              <stop offset="100%" stop-color="#020818"/>
+            </radialGradient>
+            <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#a6c8ff"/>
+              <stop offset="100%" stop-color="#ffffff"/>
+            </linearGradient>
+          </defs>
+          <rect width="1200" height="1200" fill="url(#bg)"/>
+          <g opacity="0.9">
+            <circle cx="140" cy="180" r="3" fill="#fff"/>
+            <circle cx="280" cy="240" r="2" fill="#dbe7ff"/>
+            <circle cx="920" cy="190" r="2.5" fill="#fff"/>
+            <circle cx="1040" cy="320" r="2" fill="#dbe7ff"/>
+            <circle cx="960" cy="820" r="2.5" fill="#fff"/>
+            <circle cx="180" cy="920" r="2" fill="#dbe7ff"/>
+            <circle cx="600" cy="120" r="2.8" fill="#fff"/>
+            <circle cx="620" cy="1040" r="2" fill="#dbe7ff"/>
+          </g>
+          <g fill="none" stroke="url(#glow)" stroke-opacity="0.55" stroke-width="3">
+            <path d="M160 190 L250 220 L290 270 L330 210"/>
+            <path d="M920 180 L980 220 L1050 300 L980 360 L900 300"/>
+            <path d="M160 900 L240 860 L320 880 L370 810 L440 840"/>
+            <path d="M520 230 L590 190 L650 240 L720 210"/>
+            <path d="M540 860 L610 800 L690 840 L760 790"/>
+            <path d="M790 540 L850 500 L920 530 L980 480"/>
+          </g>
+          <g fill="url(#glow)">
+            <circle cx="160" cy="190" r="12"/>
+            <circle cx="250" cy="220" r="9"/>
+            <circle cx="290" cy="270" r="10"/>
+            <circle cx="330" cy="210" r="11"/>
+            <circle cx="920" cy="180" r="13"/>
+            <circle cx="980" cy="220" r="10"/>
+            <circle cx="1050" cy="300" r="11"/>
+            <circle cx="980" cy="360" r="9"/>
+            <circle cx="900" cy="300" r="10"/>
+          </g>
+          <g font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" fill="#ffffff">
+            <text x="70" y="108" font-size="44" font-weight="700">${title}</text>
+            <text x="70" y="165" font-size="26" opacity="0.85">${birthday}</text>
+            <text x="70" y="1110" font-size="34" font-weight="600">${numbersText}</text>
+          </g>
+        </svg>
+      `.trim();
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     }
 
     async function runRecommendation({ birthday, mode }) {
@@ -308,6 +373,8 @@
       summaryTitleEl.textContent = mode === 'random'
         ? `${sign.name} 무작위 추천 번호`
         : `${sign.name} 추천 번호`;
+      cardNoteEl.textContent = '별자리 카드 생성 중...';
+      cardStatusEl.textContent = '';
 
       trackEvent(mode === 'random' ? 'lotto_auto_draw_success' : 'lotto_draw_success', {
         event_category: 'engagement',
@@ -332,11 +399,20 @@
         try {
           const card = await requestHiggsfieldCard(higgsfieldKey, birthday, data, sign);
           ensureCardImage(card.imageUrl, `${sign.name} 별자리 카드`);
+          cardNoteEl.textContent = 'Higgsfield로 생성한 실제 카드입니다.';
+          cardStatusEl.textContent = '이미지 생성 완료';
           trackEvent('higgsfield_card_success', { event_category: 'engagement', zodiac_sign: sign.name });
         } catch (cardErr) {
+          ensureCardImage(buildFallbackCard(sign, data, birthday), `${sign.name} 별자리 카드`);
+          cardNoteEl.textContent = 'Higgsfield 응답이 실패해서 화면용 별자리 카드를 대신 보여줍니다.';
+          cardStatusEl.textContent = cardErr?.message ? `대체 카드 표시됨: ${cardErr.message}` : '대체 카드 표시됨';
           trackEvent('higgsfield_card_error', { event_category: 'engagement', reason: 'card_failed' });
           console.warn(cardErr);
         }
+      } else {
+        ensureCardImage(buildFallbackCard(sign, data, birthday), `${sign.name} 별자리 카드`);
+        cardNoteEl.textContent = 'Higgsfield Credentials가 없어서 대체 별자리 카드를 보여줍니다.';
+        cardStatusEl.textContent = '대체 카드 표시됨';
       }
     }
 
@@ -388,6 +464,8 @@
       aiStateEl.textContent = '대기 중';
       statusEl.textContent = '생년월일을 입력하면 별자리를 계산합니다.';
       errorEl.textContent = '';
+      cardNoteEl.textContent = '별자리 카드 이미지가 여기에 표시됩니다.';
+      cardStatusEl.textContent = '';
       const existingCard = document.getElementById('cardImage');
       if (existingCard) existingCard.remove();
     });
