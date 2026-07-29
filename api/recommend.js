@@ -1,5 +1,3 @@
-const https = require('https');
-
 function send(res, statusCode, body) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -47,29 +45,21 @@ function buildPrompt(sign, birthday) {
   ].join('\n');
 }
 
-function openaiRequest(apiKey, requestBody) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      'https://api.openai.com/v1/responses',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(requestBody),
-        },
-      },
-      res => {
-        let raw = '';
-        res.setEncoding('utf8');
-        res.on('data', chunk => (raw += chunk));
-        res.on('end', () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, raw }));
-      }
-    );
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
+async function openaiRequest(apiKey, requestBody) {
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: requestBody,
   });
+
+  return {
+    ok: res.ok,
+    status: res.status,
+    raw: await res.text(),
+  };
 }
 
 function extractOutputText(data) {
@@ -100,14 +90,30 @@ module.exports = async (req, res) => {
 
   const apiKey = String(payload.apiKey || process.env.OPENAI_API_KEY || '').trim();
   const sign = getZodiac(payload.birthday);
-  if (!apiKey) return send(res, 400, { error: 'OPENAI_API_KEY 환경변수가 필요합니다.' });
+  if (!apiKey) return send(res, 400, { error: 'OpenAI API Key가 필요합니다.' });
   if (!payload.birthday || !sign) return send(res, 400, { error: '생년월일과 별자리가 필요합니다.' });
 
   const requestBody = JSON.stringify({
     model: 'gpt-5.4-mini',
     input: [
-      { role: 'system', content: '당신은 로또 번호 추천을 돕는 친절한 한국어 챗봇입니다. 결과는 정확한 JSON만 반환합니다.' },
-      { role: 'user', content: buildPrompt(sign, payload.birthday) },
+      {
+        role: 'system',
+        content: [
+          {
+            type: 'input_text',
+            text: '당신은 로또 번호 추천을 돕는 친절한 한국어 챗봇입니다. 반드시 JSON만 반환하세요.',
+          },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: buildPrompt(sign, payload.birthday),
+          },
+        ],
+      },
     ],
     text: {
       format: {
@@ -128,13 +134,13 @@ module.exports = async (req, res) => {
   });
 
   const response = await openaiRequest(apiKey, requestBody);
-  if (!response.ok) return send(res, 502, { error: `OpenAI API 오류(${response.status}).` });
+  if (!response.ok) return send(res, 502, { error: `OpenAI API 오류(${response.status}): ${response.raw}` });
 
   let data;
   try {
     data = JSON.parse(response.raw);
   } catch {
-    return send(res, 502, { error: 'OpenAI 응답 JSON 파싱 실패' });
+    return send(res, 502, { error: `OpenAI 응답 JSON 파싱 실패: ${response.raw}` });
   }
 
   const text = extractOutputText(data);
@@ -144,14 +150,14 @@ module.exports = async (req, res) => {
   try {
     parsed = JSON.parse(text);
   } catch {
-    return send(res, 502, { error: '결과 JSON 파싱 실패' });
+    return send(res, 502, { error: `결과 JSON 파싱 실패: ${text}` });
   }
 
   const main = [...new Set((parsed.main || []).filter(Number.isInteger))].filter(n => n >= 1 && n <= 45).sort((a, b) => a - b);
   const bonus = Number.isInteger(parsed.bonus) && parsed.bonus >= 1 && parsed.bonus <= 45 ? parsed.bonus : null;
   const explanation = typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '';
 
-  if (main.length !== 6 || bonus === null || !explanation) return send(res, 502, { error: '응답 형식이 올바르지 않습니다.' });
+  if (main.length !== 6 || bonus === null || !explanation) return send(res, 502, { error: `응답 형식이 올바르지 않습니다: ${text}` });
   if (main.includes(bonus)) return send(res, 502, { error: '보너스 번호가 메인 번호와 중복되었습니다.' });
 
   return send(res, 200, { main, bonus, explanation });
