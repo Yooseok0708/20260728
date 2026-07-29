@@ -121,9 +121,15 @@ module.exports = async (req, res) => {
     return send(res, 502, { error: `결과 JSON 파싱 실패: ${text}` });
   }
 
-  const main = [...new Set((parsed.main || []).filter(Number.isInteger))].filter(n => n >= 1 && n <= 45).sort((a, b) => a - b);
-  const bonus = Number.isInteger(parsed.bonus) && parsed.bonus >= 1 && parsed.bonus <= 45 ? parsed.bonus : null;
-  const explanation = typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '';
+  const normalized = parsed?.main ? parsed : parsed?.properties ? {
+    main: parsed.properties.main,
+    bonus: parsed.properties.bonus,
+    explanation: parsed.properties.explanation,
+  } : parsed;
+
+  const main = [...new Set((normalized.main || []).filter(Number.isInteger))].filter(n => n >= 1 && n <= 45).sort((a, b) => a - b);
+  const bonus = Number.isInteger(normalized.bonus) && normalized.bonus >= 1 && normalized.bonus <= 45 ? normalized.bonus : null;
+  const explanation = typeof normalized.explanation === 'string' ? normalized.explanation.trim() : '';
 
   if (main.length !== 6 || bonus === null || !explanation) return send(res, 502, { error: `응답 형식이 올바르지 않습니다: ${text}` });
   if (main.includes(bonus)) return send(res, 502, { error: '보너스 번호가 메인 번호와 중복되었습니다.' });
