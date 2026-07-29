@@ -6,6 +6,10 @@
       "dest": "/api/recommend.js"
     },
     {
+      "src": "/api/higgsfield-card",
+      "dest": "/api/higgsfield-card.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
