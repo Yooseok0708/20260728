@@ -57,7 +57,7 @@
       <div>
         <div class="eyebrow"><span class="dot"></span> Zodiac Lotto Maker</div>
         <h1>생년월일로 별자리 기반 로또 번호를 뽑아보세요</h1>
-        <p class="lead">생년월일을 입력하면 별자리를 판별하고, 가능하면 OpenAI로 번호와 이유를 만든 뒤 Supabase에 저장합니다. 네트워크가 실패해도 예비 번호를 보여줍니다.</p>
+        <p class="lead">생년월일을 입력하면 별자리를 판별하고, 서버에서 OpenAI gpt-5.4-mini로 번호와 이유를 만든 뒤 Supabase에 저장합니다. 실패해도 예비 번호는 화면에 표시됩니다.</p>
       </div>
       <div class="badge">OpenAI API + Supabase</div>
     </header>
@@ -65,12 +65,7 @@
     <section class="grid">
       <div class="card">
         <h2 class="panel-title">입력</h2>
-        <p class="panel-copy">OpenAI API Key를 넣으면 AI 추천을 시도하고, Supabase 설정이 있으면 추첨 기록을 저장합니다.</p>
-        <div class="field">
-          <label for="apiKey">OpenAI API Key</label>
-          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
-          <div class="hint">이 값은 저장하지 않고 요청할 때만 사용합니다.</div>
-        </div>
+        <p class="panel-copy">OpenAI API Key는 Vercel 환경변수 `OPENAI_API_KEY`에서 읽습니다. 화면에서는 생년월일만 입력하면 됩니다.</p>
         <div class="field">
           <label for="birthdate">생년월일</label>
           <input id="birthdate" type="date" />
@@ -110,7 +105,6 @@
   </main>
 
   <script>
-    const apiKeyEl = document.getElementById('apiKey');
     const birthdateEl = document.getElementById('birthdate');
     const drawBtn = document.getElementById('drawBtn');
     const resetBtn = document.getElementById('resetBtn');
@@ -194,17 +188,17 @@
       return {
         main: values.slice(0, 6),
         bonus: values[6],
-        explanation: `${sign.name}의 ${sign.element} 기운과 ${sign.trait} 성향을 바탕으로 만든 로컬 예비 번호입니다. 네트워크나 OpenAI 호출이 실패해도 화면에는 결과가 보이도록 했습니다.`,
+        explanation: `${sign.name}의 ${sign.element} 기운과 ${sign.trait} 성향을 바탕으로 만든 로컬 예비 번호입니다. OpenAI 호출이 실패해도 화면에는 결과가 보이도록 했습니다.`,
         source: 'fallback',
       };
     }
 
-    async function requestRecommendation(apiKey, birthday, sign) {
+    async function requestRecommendation(birthday, sign) {
       try {
         const response = await fetch('/api/recommend', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, birthday, sign }),
+          body: JSON.stringify({ birthday, sign }),
         });
         const data = await response.json().catch(() => null);
         if (!response.ok) throw new Error(data?.error || '서버 요청에 실패했습니다.');
@@ -238,16 +232,12 @@
 
     drawBtn.addEventListener('click', async () => {
       errorEl.textContent = '';
-      const apiKey = apiKeyEl.value.trim();
       const birthday = birthdateEl.value;
-      if (!apiKey) {
-        errorEl.textContent = 'OpenAI API Key를 입력해 주세요.';
-        return;
-      }
       if (!birthday) {
         errorEl.textContent = '생년월일을 입력해 주세요.';
         return;
       }
+
       const sign = getZodiac(birthday);
       if (!sign) {
         errorEl.textContent = '별자리를 계산할 수 없습니다.';
@@ -261,7 +251,7 @@
       drawBtn.classList.add('pulse');
 
       try {
-        const data = await requestRecommendation(apiKey, birthday, sign);
+        const data = await requestRecommendation(birthday, sign);
         renderNumbers(data);
         renderExplanation(`생년월일: ${birthday}\n별자리: ${sign.name}`, data.explanation);
         mainCountEl.textContent = `${data.main.length}개`;
@@ -300,7 +290,6 @@
     });
 
     resetBtn.addEventListener('click', () => {
-      apiKeyEl.value = '';
       birthdateEl.value = '';
       numbersEl.innerHTML = '';
       chatEl.innerHTML = '';

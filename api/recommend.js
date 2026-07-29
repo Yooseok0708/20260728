@@ -24,12 +24,12 @@ function buildPrompt(sign, birthday) {
     `생년월일: ${birthday}`,
     `별자리: ${sign.name}`,
     `별자리 요소: ${sign.element}`,
-    `별자리 특징: ${sign.trait}`,
+    `별자리 성향: ${sign.trait}`,
     `별자리 분위기: ${sign.vibe}`,
     '',
     '아래 규칙을 지켜 로또 추천 결과를 만들어 주세요.',
     '- 한국 로또 기준으로 메인 번호 6개와 보너스 번호 1개를 추천하세요.',
-    '- 모든 숫자는 1부터 45 사이 정수여야 합니다.',
+    '- 모든 숫자는 1부터 45 사이의 정수여야 합니다.',
     '- 메인 번호 6개는 중복 없이 오름차순으로 정렬하세요.',
     '- 보너스 번호는 메인 번호와 달라야 합니다.',
     '- 번호 선택의 이유를 3~5문장 한국어로 설명하세요.',
@@ -88,15 +88,15 @@ module.exports = async (req, res) => {
     return send(res, 400, { error: '잘못된 JSON 요청입니다.' });
   }
 
-  const apiKey = String(payload.apiKey || '').trim();
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
   const sign = normalizeSign(payload.sign);
-  if (!apiKey) return send(res, 400, { error: 'OpenAI API key가 필요합니다.' });
+  if (!apiKey) return send(res, 400, { error: 'OPENAI_API_KEY 환경변수가 필요합니다.' });
   if (!payload.birthday || !sign) return send(res, 400, { error: '생년월일과 별자리가 필요합니다.' });
 
   const requestBody = JSON.stringify({
     model: 'gpt-5.4-mini',
     input: [
-      { role: 'system', content: '당신은 로또 번호 추천을 돕는 친절한 한국어 어시스턴트입니다. 결과는 정확한 JSON만 반환합니다.' },
+      { role: 'system', content: '당신은 로또 번호 추천을 돕는 친절한 한국어 챗봇입니다. 결과는 정확한 JSON만 반환합니다.' },
       { role: 'user', content: buildPrompt(sign, payload.birthday) },
     ],
     text: {
@@ -141,7 +141,7 @@ module.exports = async (req, res) => {
   const bonus = Number.isInteger(parsed.bonus) && parsed.bonus >= 1 && parsed.bonus <= 45 ? parsed.bonus : null;
   const explanation = typeof parsed.explanation === 'string' ? parsed.explanation.trim() : '';
 
-  if (main.length !== 6 || bonus === null || !explanation) return send(res, 502, { error: '응답 내용이 요구 형식과 맞지 않습니다.' });
+  if (main.length !== 6 || bonus === null || !explanation) return send(res, 502, { error: '응답 형식이 올바르지 않습니다.' });
   if (main.includes(bonus)) return send(res, 502, { error: '보너스 번호가 메인 번호와 중복되었습니다.' });
 
   return send(res, 200, { main, bonus, explanation });
