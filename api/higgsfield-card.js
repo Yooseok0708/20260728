@@ -15,7 +15,7 @@ function buildPrompt(sign, birthday, numbers) {
     `Zodiac sign: ${sign.name}`,
     `Birthday seed: ${birthday}`,
     `Lottery numbers: ${numbers.main.join(', ')} + bonus ${numbers.bonus}`,
-    'No text, no watermark, no frame outside the card, highly detailed, luminous, polished, and balanced.',
+    'No text, no watermark, no extra border, highly detailed, luminous, polished, and balanced.',
   ].join(' ');
 }
 
@@ -39,41 +39,8 @@ function getZodiac(dateStr) {
   return signs.find(sign => sign.start <= sign.end ? key >= sign.start && key <= sign.end : key >= sign.start || key <= sign.end) || null;
 }
 
-async function postHiggsfield(credentials, payload) {
-  const res = await fetch('https://platform.higgsfield.ai/v1/text2image/soul', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Key ${credentials}`,
-      'User-Agent': 'higgsfield-server-js/2.0',
-    },
-    body: JSON.stringify(payload),
-  });
-  const raw = await res.text().catch(() => '');
-  let json = null;
-  try {
-    json = raw ? JSON.parse(raw) : null;
-  } catch {
-    json = null;
-  }
-  return { ok: res.ok, status: res.status, json, raw };
-}
-
-async function pollStatus(statusUrl, credentials) {
-  const started = Date.now();
-  while (Date.now() - started < 120000) {
-    const res = await fetch(statusUrl, {
-      headers: {
-        Authorization: `Key ${credentials}`,
-        'User-Agent': 'higgsfield-server-js/2.0',
-      },
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok) return { ok: false, status: res.status, data };
-    if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'nsfw') return { ok: true, data };
-    await new Promise(resolve => setTimeout(resolve, 3000));
-  }
-  return { ok: false, data: { error: 'Higgsfield generation timed out.' } };
+async function loadHiggsfield() {
+  return import('@higgsfield/client/v2');
 }
 
 module.exports = async (req, res) => {
@@ -98,24 +65,32 @@ module.exports = async (req, res) => {
     return send(res, 400, { error: '추천 번호가 필요합니다.' });
   }
 
-  const submit = await postHiggsfield(credentials, {
-    prompt: buildPrompt(sign, payload.birthday, payload.numbers),
-    aspect_ratio: '1:1',
-    quality: '2k',
-  });
+  try {
+    const { higgsfield, config } = await loadHiggsfield();
+    config({ credentials });
 
-  const requestId = submit.json?.request_id;
-  const statusUrl = submit.json?.status_url;
-  if (!requestId || !statusUrl) {
-    return send(res, 502, { error: submit.json?.error || submit.raw || `Higgsfield 요청 실패(${submit.status})` });
+    const jobSet = await higgsfield.subscribe('text2image_soul_v2', {
+      input: {
+        prompt: buildPrompt(sign, payload.birthday, payload.numbers),
+        aspect_ratio: '1:1',
+        quality: '2k',
+      },
+      withPolling: true,
+    });
+
+    const imageUrl = jobSet?.jobs?.[0]?.results?.raw?.url || jobSet?.jobs?.[0]?.results?.min?.url;
+    if (!imageUrl) {
+      return send(res, 502, { error: '이미지 URL을 찾지 못했습니다.' });
+    }
+
+    return send(res, 200, {
+      imageUrl,
+      requestId: jobSet.id || jobSet.requestId || null,
+      status: jobSet.isCompleted ? 'completed' : 'unknown',
+    });
+  } catch (error) {
+    return send(res, 502, {
+      error: error?.message || 'Higgsfield 요청 실패',
+    });
   }
-
-  const finished = await pollStatus(statusUrl, credentials);
-  if (!finished.ok) return send(res, 502, { error: finished.data?.error || `Higgsfield 조회 실패(${finished.status || ''})` });
-
-  const data = finished.data;
-  const imageUrl = data?.images?.[0]?.url || data?.jobs?.[0]?.results?.raw?.url || data?.jobs?.[0]?.results?.min?.url;
-  if (!imageUrl) return send(res, 502, { error: `이미지 URL을 찾지 못했습니다. ${JSON.stringify(data)}` });
-
-  return send(res, 200, { imageUrl, requestId, status: data.status || 'completed' });
 };
